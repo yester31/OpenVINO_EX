@@ -1,7 +1,7 @@
 import torch, torchvision, os, cv2, struct, time
 import numpy as np
 from utils import *
-from torchsummary import summary
+#from torchsummary import summary
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
