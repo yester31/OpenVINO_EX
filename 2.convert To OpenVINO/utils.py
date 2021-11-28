@@ -1,15 +1,6 @@
-import torch, torchvision, os, cv2, struct, time
+import torch
+import cv2
 import numpy as np
-from torchsummary import summary
-
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
-print('gpu device count : ', torch.cuda.device_count())
-print('device_name : ', torch.cuda.get_device_name(0))
-print('gpu available : ', torch.cuda.is_available())
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu:0")
-#device = "cpu:0"
 
 class_name = [  #bg +  1000 classes #"background",
    "tench Tinca tinca","goldfish Carassius auratus","great white shark white shark man-eater man-eating shark Carcharodon carcharias","tiger shark Galeocerdo cuvieri","hammerhead hammerhead shark","electric ray crampfish numbfish torpedo","stingray","cock","hen","ostrich Struthio camelus","brambling Fringilla montifringilla","goldfinch Carduelis carduelis","house finch linnet Carpodacus mexicanus","junco snowbird","indigo bunting indigo finch indigo bird Passerina cyanea","robin American robin Turdus migratorius","bulbul","jay","magpie","chickadee","water ouzel dipper","kite","bald eagle American eagle Haliaeetus leucocephalus","vulture","great grey owl great gray owl Strix nebulosa","European fire salamander Salamandra salamandra","common newt Triturus vulgaris","eft","spotted salamander Ambystoma maculatum","axolotl mud puppy Ambystoma mexicanum","bullfrog Rana catesbeiana","tree frog tree-frog","tailed frog bell toad ribbed toad tailed toad Ascaphus trui","loggerhead loggerhead turtle Caretta caretta","leatherback turtle leatherback leathery turtle Dermochelys coriacea","mud turtle","terrapin","box turtle box tortoise","banded gecko","common iguana iguana Iguana iguana","American chameleon anole Anolis carolinensis",
@@ -34,8 +25,25 @@ class_name = [  #bg +  1000 classes #"background",
    "gyromitra","stinkhorn carrion fungus","earthstar","hen-of-the-woods hen of the woods Polyporus frondosus Grifola frondosa","bolete","ear spike capitulum","toilet tissue toilet paper bathroom tissue"
 ]
 
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+# 전처리 함수
+def preprocess_(img, half):
+    with torch.no_grad():
+        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # bgr -> rgb
+        img3 = img2.transpose(2, 0, 1)              # hwc -> chw
+        img4 = img3.astype(np.float32)              # uint -> float32
+        img4 /= 255                                 # 1/255
+        img5 = torch.from_numpy(img4)               # numpy -> tensor
+        if half:                                    # f32 -> f16
+            img5 = img5.half()
+        img6 = img5.unsqueeze(0)                    # [c,h,w] -> [1,c,h,w]
+
+        return img6
+
 # 전처리 및 추론 연산 함수
-def infer(img, net, half):
+def infer(img, net, half, device):
     with torch.no_grad():
         img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)     # bgr -> rgb
         img3 = img2.transpose(2, 0, 1)                  # hwc -> chw
@@ -49,64 +57,20 @@ def infer(img, net, half):
         out = net(img6)
         return out
 
-def main():
+# 전처리 및 추론 연산 함수
+def infer_onnx(img, net, half,device):
+    with torch.no_grad():
+        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # bgr -> rgb
+        img3 = img2.transpose(2, 0, 1)              # hwc -> chw
+        img4 = img3.astype(np.float32)              # uint -> float32
+        img4 /= 255                                 # 1/255
+        img5 = torch.from_numpy(img4)               # numpy -> tensor
+        if half:                                    # f32 -> f16
+            img5 = img5.half()
+        img6 = img5.unsqueeze(0)                    # [c,h,w] -> [1,c,h,w]
+        img6 = img6.to(device)
 
-    if os.path.isfile('resnet18_jit.pth'):                              # resnet18_jit.pth 파일이 있다면
-        net = torch.jit.load('resnet18_jit.pth', map_location=device)   # resnet18_jit.pth 파일 로드
-    else:                                                               # resnet18_jit.pth 파일이 없다면
-        with torch.no_grad():
-            if os.path.isfile('resnet18.pth'):                          # resnet18.pth 파일이 있다면
-                net = torch.load('resnet18.pth')                        # resnet18.pth 파일 로드
-            else:  # resnet18.pth 파일이 없다면
-                net = torchvision.models.resnet18(pretrained=True)      # torchvision에서 resnet18 pretrained weight 다운
-                torch.save(net, 'resnet18.pth')                         # resnet18.pth 파일 저장
-            torch.jit.save(torch.jit.script(net), 'resnet18_jit.pth')   # resnet18_jit.pth 파일 저장
-        net = torch.jit.load('resnet18_jit.pth', map_location=device)  # resnet18_jit.pth 파일 로드
+        ort_inputs = {net.get_inputs()[0].name: to_numpy(img6)}
+        ort_outs = net.run(None, ort_inputs)
 
-    #half = True
-    half = False
-    net = net.eval()                            # vgg 모델을 평가 모드로 세팅
-    net = net.to(device)                        # gpu 설정
-    if half:
-        net.half()  # to FP16
-    #print('model: ', net)                       # 모델 구조 출력
-    #summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
-
-    img = cv2.imread('TestDate/panda0.jpg')  # image file load
-    dur_time = 0
-    iteration = 100
-
-    # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
-    out = infer(img, net, half)
-    torch.cuda.synchronize()
-
-    for i in range(iteration):
-        begin = time.time()
-        out = infer(img, net, half)
-        torch.cuda.synchronize()
-        dur = time.time() - begin
-        dur_time += dur
-        #print('{} dur time : {}'.format(i, dur))
-
-    print('{} iteration time : {} [sec]'.format(iteration, dur_time))
-
-    max_tensor = out.max(dim=1)
-    max_value = max_tensor[0].cpu().data.numpy()[0]
-    max_index = max_tensor[1].cpu().data.numpy()[0]
-    print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
-
-
-if __name__ == '__main__':
-    main()
-
-# base model
-# device = "cpu:0" 일 때
-# 100 iteration time : 2.7593486309051514 [sec]
-# device = "gpu:0" 일 때
-# 100 iteration time : 0.42092013359069824 [sec]
-
-# jit model
-# device = "cpu:0" 일 때
-# 100 iteration time : 2.768479824066162 [sec]
-# device = "gpu:0" 일 때
-# 100 iteration time : 0.36458611488342285 [sec]
+        return ort_outs[0]

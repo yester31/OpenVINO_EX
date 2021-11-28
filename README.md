@@ -6,12 +6,20 @@
 # 224x224x3 이미지 1개 100회 반복 계산 수행시간 비교
 * PyTorch (cpu) -> 2759 [ms]
 * PyTorch (gpu) -> 389 [ms]
+* 
 * PyTorch JIT (cpu) -> 2768 [ms]
 * PyTorch JIT (gpu) -> 364 [ms]
+* 
 * ONNX Runtime (cpu) -> 1218 [ms]
 * ONNX Runtime (gpu) -> 316 [ms]
+* 
 * openVINO (cpu) -> 1110 [ms]
 * openVINO (igpu) -> 510 [ms]
 
 ## QAT (준비중)
 
+
+
+#Reference
+- openVINO Tutorials : <https://docs.openvino.ai/latest/tutorials.html>
+- ONNX Runtime Tutorials : <https://onnxruntime.ai/docs/tutorials/>
