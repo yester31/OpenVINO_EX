@@ -59,7 +59,7 @@ def main():
     mo_command = f"""mo
                      --input_model "{onnx_model_name}"
                      --input_shape "[1,3, {224}, {224}]"
-                     --data_type FP32
+                     --data_type FP16
                      --output_dir "model"
                      """
     mo_command = " ".join(mo_command.split())

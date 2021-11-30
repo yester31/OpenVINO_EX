@@ -44,8 +44,8 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from nncf import NNCFConfig
 from nncf.torch import create_compressed_model, register_default_init_args
-#from openvino.inference_engine import IECore
-#from torch.jit import TracerWarning
+from openvino.inference_engine import IECore
+from torch.jit import TracerWarning
 
 import torchvision, os, cv2, struct, time
 import numpy as np
@@ -54,7 +54,7 @@ from pathlib import Path
 
 import torch.onnx
 import onnx
-from openvino.inference_engine import IECore
+
 print("onnx:", onnx.__version__)
 ie = IECore()
 for device in ie.available_devices:
@@ -82,6 +82,10 @@ def main():
 
     model.to(device)
 
+    half = False
+    if half:
+        model.half()  # to FP16
+
     MODEL_DIR = Path("model")
     OUTPUT_DIR = Path("output")
     BASE_MODEL_NAME = "resnet18"
@@ -99,19 +103,19 @@ def main():
     image_size = 224
 
     # Data loading code
-    #train_dir = "data/train"
+    train_dir = "F:\dataset\imagenet_dataset\ILSVRC2012_img_train"
     val_dir = "F:\dataset\imagenet_dataset\ILSVRC2012_img_val"
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-    # train_loader = torch.utils.data.DataLoader(
-    #     datasets.ImageFolder(train_dir, transforms.Compose([
-    #         transforms.RandomSizedCrop(224),
-    #         transforms.RandomHorizontalFlip(),
-    #         transforms.ToTensor(),
-    #         normalize,
-    #     ])),
-    #     batch_size=batch_size, shuffle=True,
-    #     num_workers=4, pin_memory=True)
+    train_loader = torch.utils.data.DataLoader(
+        datasets.ImageFolder(train_dir, transforms.Compose([
+            transforms.RandomSizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ])),
+        batch_size=batch_size, shuffle=True,
+        num_workers=4, pin_memory=True)
 
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(val_dir, transforms.Compose([
@@ -141,14 +145,14 @@ def main():
         },
     }
     nncf_config = NNCFConfig.from_dict(nncf_config_dict)
-    # nncf_config = register_default_init_args(nncf_config, train_loader)
-    # compression_ctrl, model = create_compressed_model(model, nncf_config)
-    # f32_acc1 = validate(val_loader, model, criterion,device)
-    # print(f"Accuracy of initialized INT8 model: {f32_acc1:.3f}")
-
-    # # Fine-tune the Compressed Model================================================================
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-    # # optimizer = torch.optim.SGD(model.parameters(), lr=init_lr)
+    nncf_config = register_default_init_args(nncf_config, train_loader)
+    compression_ctrl, model = create_compressed_model(model, nncf_config)
+    #f32_acc1 = validate(val_loader, model, criterion,device)
+    #print(f"Accuracy of initialized INT8 model: {f32_acc1:.3f}")
+    print('done')
+    # # # Fine-tune the Compressed Model================================================================
+    # #optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-5)
     # # train for one epoch with NNCF
     # train(train_loader, model, criterion, optimizer, 0, device) # 0 mean 1 epoch
     # # evaluate on validation set after Quantization-Aware Training (QAT case)
@@ -161,10 +165,54 @@ def main():
     #     # Export INT8 model to ONNX that is supported by the OpenVINO™ toolkit
     #     compression_ctrl.export_model(int8_onnx_path)
     #     print(f"INT8 ONNX model exported to {int8_onnx_path}.")
-
-
-
-
+    #
+    # # Construct the command for Model Optimizer
+    # mo_command = f"""mo
+    #                  --input_model "{int8_onnx_path}"
+    #                  --input_shape "[1,3, {224}, {224}]"
+    #                  --data_type FP16
+    #                  --output_dir "model"
+    #                  """
+    # mo_command = " ".join(mo_command.split())
+    # print("Model Optimizer command to convert the ONNX model to OpenVINO:")
+    #
+    # if not os.path.isfile(int8_ir_path):
+    #     print("Exporting ONNX model to IR... This may take a few minutes.")
+    #     print(mo_command)
+    #     os.system(mo_command)
+    # else:
+    #     print(f"IR model {int8_ir_path} already exists.")
+    #
+    # net_onnx = ie.read_network(model=int8_ir_path)
+    # exec_net_onnx = ie.load_network(network=net_onnx, device_name=intel_device)
+    #
+    # input_layer_onnx = next(iter(exec_net_onnx.input_info))
+    # output_layer_onnx = next(iter(exec_net_onnx.outputs))
+    #
+    # img = cv2.imread('date/panda0.jpg')  # image file load
+    # dur_time = 0
+    # iteration = 100
+    #
+    # # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
+    # input_ = preprocess_(img, half)
+    # res_onnx = exec_net_onnx.infer(inputs={input_layer_onnx: input_})
+    # res_onnx = res_onnx[output_layer_onnx]
+    #
+    # for i in range(iteration):
+    #     begin = time.time()
+    #     input_ = preprocess_(img, half)
+    #     res_onnx = exec_net_onnx.infer(inputs={input_layer_onnx: input_})
+    #     res_onnx = res_onnx[output_layer_onnx]
+    #     dur = time.time() - begin
+    #     dur_time += dur
+    #     #print('{} dur time : {}'.format(i, dur))
+    #
+    # print('{} iteration time : {} [sec]'.format(iteration, dur_time))
+    #
+    # max_index = np.argmax(res_onnx[0])
+    # max_value = res_onnx[0, max_index]
+    # print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
+    #
 
 if __name__ == '__main__':
     main()

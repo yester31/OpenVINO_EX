@@ -3,6 +3,7 @@ import torch.nn as nn
 import cv2
 import numpy as np
 import time
+import torch.optim as optim
 
 class_name = [  #bg +  1000 classes #"background",
    "tench Tinca tinca","goldfish Carassius auratus","great white shark white shark man-eater man-eating shark Carcharodon carcharias","tiger shark Galeocerdo cuvieri","hammerhead hammerhead shark","electric ray crampfish numbfish torpedo","stingray","cock","hen","ostrich Struthio camelus","brambling Fringilla montifringilla","goldfinch Carduelis carduelis","house finch linnet Carpodacus mexicanus","junco snowbird","indigo bunting indigo finch indigo bird Passerina cyanea","robin American robin Turdus migratorius","bulbul","jay","magpie","chickadee","water ouzel dipper","kite","bald eagle American eagle Haliaeetus leucocephalus","vulture","great grey owl great gray owl Strix nebulosa","European fire salamander Salamandra salamandra","common newt Triturus vulgaris","eft","spotted salamander Ambystoma maculatum","axolotl mud puppy Ambystoma mexicanum","bullfrog Rana catesbeiana","tree frog tree-frog","tailed frog bell toad ribbed toad tailed toad Ascaphus trui","loggerhead loggerhead turtle Caretta caretta","leatherback turtle leatherback leathery turtle Dermochelys coriacea","mud turtle","terrapin","box turtle box tortoise","banded gecko","common iguana iguana Iguana iguana","American chameleon anole Anolis carolinensis",
@@ -224,14 +225,14 @@ def model_equivalence(model_1,
     model_1.to(device)
     model_2.to(device)
 
-    for _ in range(num_tests):
+    for idx in range(num_tests):
         x = torch.rand(size=input_size).to(device)
         y1 = model_1(x).detach().cpu().numpy()
         y2 = model_2(x).detach().cpu().numpy()
         if np.allclose(a=y1, b=y2, rtol=rtol, atol=atol, equal_nan=False) == False:
-            print("Model equivalence test sample failed: ")
-            print(y1)
-            print(y2)
+            print("Model equivalence test sample failed: {}".format(idx))
+            #print(y1)
+            #print(y2)
             return False
 
     return True
@@ -259,3 +260,111 @@ class QuantizedResNet18(nn.Module):
         # to floating point in the quantized model
         x = self.dequant(x)
         return x
+
+
+def evaluate_model(model, test_loader, device, criterion=None):
+
+    model.eval()
+    model.to(device)
+
+    running_loss = 0
+    running_corrects = 0
+
+    for inputs, labels in test_loader:
+
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        outputs = model(inputs)
+        _, preds = torch.max(outputs, 1)
+
+        if criterion is not None:
+            loss = criterion(outputs, labels).item()
+        else:
+            loss = 0
+
+        # statistics
+        running_loss += loss * inputs.size(0)
+        running_corrects += torch.sum(preds == labels.data)
+
+    eval_loss = running_loss / len(test_loader.dataset)
+    eval_accuracy = running_corrects / len(test_loader.dataset)
+
+    return eval_loss, eval_accuracy
+
+
+def train_model(model,train_loader,test_loader,device,learning_rate=1e-1,num_epochs=200):
+
+    # The training configurations were not carefully selected.
+
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    model.to(device)
+
+    # It seems that SGD optimizer is better than Adam optimizer for ResNet18 training on CIFAR10.
+    optimizer = optim.SGD(model.parameters(),
+                          lr=learning_rate,
+                          momentum=0.9,
+                          weight_decay=1e-4)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=500)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                     milestones=[100, 150],
+                                                     gamma=0.1,
+                                                     last_epoch=-1)
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+
+    # Evaluation
+    model.eval()
+    eval_loss, eval_accuracy = evaluate_model(model=model,
+                                              test_loader=test_loader,
+                                              device=device,
+                                              criterion=criterion)
+    print("Epoch: {:03d} Eval Loss: {:.3f} Eval Acc: {:.3f}".format(
+        0, eval_loss, eval_accuracy))
+
+    for epoch in range(num_epochs):
+
+        # Training
+        model.train()
+
+        running_loss = 0
+        running_corrects = 0
+
+        for inputs, labels in train_loader:
+
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            # zero the parameter gradients
+            optimizer.zero_grad()
+
+            # forward + backward + optimize
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            # statistics
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+
+        train_loss = running_loss / len(train_loader.dataset)
+        train_accuracy = running_corrects / len(train_loader.dataset)
+
+        # Evaluation
+        model.eval()
+        eval_loss, eval_accuracy = evaluate_model(model=model,
+                                                  test_loader=test_loader,
+                                                  device=device,
+                                                  criterion=criterion)
+
+        # Set learning rate scheduler
+        scheduler.step()
+
+        print(
+            "Epoch: {:03d} Train Loss: {:.3f} Train Acc: {:.3f} Eval Loss: {:.3f} Eval Acc: {:.3f}"
+            .format(epoch + 1, train_loss, train_accuracy, eval_loss,
+                    eval_accuracy))
+
+    return model

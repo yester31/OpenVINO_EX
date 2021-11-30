@@ -20,7 +20,7 @@
 * openVINO (igpu) -> 510 [ms]
 
 
-# 3.OpenVINO_QAT (진행중)
+# 3.OpenVINO_QAT (보류)
 
 
 # 4.OpenVINO Custom nGraph Operations (준비중)
