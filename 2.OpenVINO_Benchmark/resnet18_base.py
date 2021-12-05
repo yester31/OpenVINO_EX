@@ -10,7 +10,7 @@ print('device_name : ', torch.cuda.get_device_name(0))
 print('gpu available : ', torch.cuda.is_available())
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu:0")
-#device = "cpu:0"
+#device = torch.device("cpu:0")
 print(f"device : {device}")
 
 
@@ -62,8 +62,8 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model
+# base model 2021-12-05
 # device = "cpu:0" 일 때
-# 100 iteration time : 2.7593486309051514 [sec]
+# 100 iteration time : 3.76161527633667 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.42092013359069824 [sec]
+# 100 iteration time : 0.501741886138916 [sec]

@@ -1,6 +1,9 @@
 import torch
+import torch.nn as nn
 import cv2
 import numpy as np
+import time
+import torch.optim as optim
 
 class_name = [  #bg +  1000 classes #"background",
    "tench Tinca tinca","goldfish Carassius auratus","great white shark white shark man-eater man-eating shark Carcharodon carcharias","tiger shark Galeocerdo cuvieri","hammerhead hammerhead shark","electric ray crampfish numbfish torpedo","stingray","cock","hen","ostrich Struthio camelus","brambling Fringilla montifringilla","goldfinch Carduelis carduelis","house finch linnet Carpodacus mexicanus","junco snowbird","indigo bunting indigo finch indigo bird Passerina cyanea","robin American robin Turdus migratorius","bulbul","jay","magpie","chickadee","water ouzel dipper","kite","bald eagle American eagle Haliaeetus leucocephalus","vulture","great grey owl great gray owl Strix nebulosa","European fire salamander Salamandra salamandra","common newt Triturus vulgaris","eft","spotted salamander Ambystoma maculatum","axolotl mud puppy Ambystoma mexicanum","bullfrog Rana catesbeiana","tree frog tree-frog","tailed frog bell toad ribbed toad tailed toad Ascaphus trui","loggerhead loggerhead turtle Caretta caretta","leatherback turtle leatherback leathery turtle Dermochelys coriacea","mud turtle","terrapin","box turtle box tortoise","banded gecko","common iguana iguana Iguana iguana","American chameleon anole Anolis carolinensis",
@@ -59,17 +62,309 @@ def infer(img, net, half, device):
 
 # 전처리 및 추론 연산 함수
 def infer_onnx(img, net, half,device):
-    img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # bgr -> rgb
-    img3 = img2.transpose(2, 0, 1)              # hwc -> chw
-    img4 = img3.astype(np.float32)              # uint -> float32
-    img4 /= 255                                 # 1/255
-    img5 = torch.from_numpy(img4)               # numpy -> tensor
-    if half:                                    # f32 -> f16
-        img5 = img5.half()
-    img6 = img5.unsqueeze(0)                    # [c,h,w] -> [1,c,h,w]
-    img6 = img6.to(device)
+    with torch.no_grad():
+        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # bgr -> rgb
+        img3 = img2.transpose(2, 0, 1)              # hwc -> chw
+        img4 = img3.astype(np.float32)              # uint -> float32
+        img4 /= 255                                 # 1/255
+        img5 = torch.from_numpy(img4)               # numpy -> tensor
+        if half:                                    # f32 -> f16
+            img5 = img5.half()
+        img6 = img5.unsqueeze(0)                    # [c,h,w] -> [1,c,h,w]
+        img6 = img6.to(device)
 
-    ort_inputs = {net.get_inputs()[0].name: to_numpy(img6)}
-    ort_outs = net.run(None, ort_inputs)
+        ort_inputs = {net.get_inputs()[0].name: to_numpy(img6)}
+        ort_outs = net.run(None, ort_inputs)
 
-    return ort_outs[0]
+        return ort_outs[0]
+
+
+def train(train_loader, model, criterion, optimizer, epoch, device):
+    batch_time = AverageMeter("Time", ":3.3f")
+    losses = AverageMeter("Loss", ":2.3f")
+    top1 = AverageMeter("Acc@1", ":2.2f")
+    top5 = AverageMeter("Acc@5", ":2.2f")
+    progress = ProgressMeter(
+        len(train_loader), [batch_time, losses, top1, top5], prefix="Epoch:[{}]".format(epoch)
+    )
+
+    # switch to train mode
+    model.train()
+
+    end = time.time()
+    for i, (images, target) in enumerate(train_loader):
+        images = images.to(device)
+        target = target.to(device)
+
+        # compute output
+        output = model(images)
+        loss = criterion(output, target)
+
+        # measure accuracy and record loss
+        acc1, acc5 = accuracy(output, target, topk=(1, 5))
+        losses.update(loss.item(), images.size(0))
+        top1.update(acc1[0], images.size(0))
+        top5.update(acc5[0], images.size(0))
+
+        # compute gradient and do opt step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        print_frequency = 50
+        if i % print_frequency == 0:
+            progress.display(i)
+
+def validate(val_loader, model, criterion, device):
+    batch_time = AverageMeter("Time", ":3.3f")
+    losses = AverageMeter("Loss", ":2.3f")
+    top1 = AverageMeter("Acc@1", ":2.2f")
+    top5 = AverageMeter("Acc@5", ":2.2f")
+    progress = ProgressMeter(len(val_loader), [batch_time, losses, top1, top5], prefix="Test: ")
+
+    # switch to evaluate mode
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for i, (images, target) in enumerate(val_loader):
+            images = images.to(device)
+            target = target.to(device)
+
+            # compute output
+            output = model(images)
+            loss = criterion(output, target)
+
+            # measure accuracy and record loss
+            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            losses.update(loss.item(), images.size(0))
+            top1.update(acc1[0], images.size(0))
+            top5.update(acc5[0], images.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            print_frequency = 10
+            if i % print_frequency == 0:
+                progress.display(i)
+
+        print(" * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}".format(top1=top1, top5=top5))
+    return top1.avg
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self, name, fmt=":f"):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
+        return fmtstr.format(**self.__dict__)
+
+
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix=""):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+
+    def display(self, batch):
+        entries = [self.prefix + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        print("\t".join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = "{:" + str(num_digits) + "d}"
+        return "[" + fmt + "/" + fmt.format(num_batches) + "]"
+
+
+def accuracy(output, target, topk=(1,)):
+    """Computes the accuracy over the k top predictions for the specified values of k"""
+    with torch.no_grad():
+        maxk = max(topk)
+        batch_size = target.size(0)
+
+        _, pred = output.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+        res = []
+        for k in topk:
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
+            res.append(correct_k.mul_(100.0 / batch_size))
+        return res
+
+def model_equivalence(model_1,
+                      model_2,
+                      device,
+                      rtol=1e-05,
+                      atol=1e-08,
+                      num_tests=100,
+                      input_size=(1, 3, 32, 32)):
+
+    model_1.to(device)
+    model_2.to(device)
+
+    for idx in range(num_tests):
+        x = torch.rand(size=input_size).to(device)
+        y1 = model_1(x).detach().cpu().numpy()
+        y2 = model_2(x).detach().cpu().numpy()
+        if np.allclose(a=y1, b=y2, rtol=rtol, atol=atol, equal_nan=False) == False:
+            print("Model equivalence test sample failed: {}".format(idx))
+            #print(y1)
+            #print(y2)
+            return False
+
+    return True
+
+
+class QuantizedResNet18(nn.Module):
+    def __init__(self, model_fp32):
+
+        super(QuantizedResNet18, self).__init__()
+        # QuantStub converts tensors from floating point to quantized.
+        # This will only be used for inputs.
+        self.quant = torch.quantization.QuantStub()
+        # DeQuantStub converts tensors from quantized to floating point.
+        # This will only be used for outputs.
+        self.dequant = torch.quantization.DeQuantStub()
+        # FP32 model
+        self.model_fp32 = model_fp32
+
+    def forward(self, x):
+        # manually specify where tensors will be converted from floating
+        # point to quantized in the quantized model
+        x = self.quant(x)
+        x = self.model_fp32(x)
+        # manually specify where tensors will be converted from quantized
+        # to floating point in the quantized model
+        x = self.dequant(x)
+        return x
+
+
+def evaluate_model(model, test_loader, device, criterion=None):
+
+    model.eval()
+    model.to(device)
+
+    running_loss = 0
+    running_corrects = 0
+
+    for inputs, labels in test_loader:
+
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+
+        outputs = model(inputs)
+        _, preds = torch.max(outputs, 1)
+
+        if criterion is not None:
+            loss = criterion(outputs, labels).item()
+        else:
+            loss = 0
+
+        # statistics
+        running_loss += loss * inputs.size(0)
+        running_corrects += torch.sum(preds == labels.data)
+
+    eval_loss = running_loss / len(test_loader.dataset)
+    eval_accuracy = running_corrects / len(test_loader.dataset)
+
+    return eval_loss, eval_accuracy
+
+
+def train_model(model,train_loader,test_loader,device,learning_rate=1e-1,num_epochs=200):
+
+    # The training configurations were not carefully selected.
+
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    model.to(device)
+
+    # It seems that SGD optimizer is better than Adam optimizer for ResNet18 training on CIFAR10.
+    optimizer = optim.SGD(model.parameters(),
+                          lr=learning_rate,
+                          momentum=0.9,
+                          weight_decay=1e-4)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=500)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                     milestones=[100, 150],
+                                                     gamma=0.1,
+                                                     last_epoch=-1)
+    # optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+
+    # Evaluation
+    model.eval()
+    eval_loss, eval_accuracy = evaluate_model(model=model,
+                                              test_loader=test_loader,
+                                              device=device,
+                                              criterion=criterion)
+    print("Epoch: {:03d} Eval Loss: {:.3f} Eval Acc: {:.3f}".format(
+        0, eval_loss, eval_accuracy))
+
+    for epoch in range(num_epochs):
+
+        # Training
+        model.train()
+
+        running_loss = 0
+        running_corrects = 0
+
+        for inputs, labels in train_loader:
+
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            # zero the parameter gradients
+            optimizer.zero_grad()
+
+            # forward + backward + optimize
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            # statistics
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+
+        train_loss = running_loss / len(train_loader.dataset)
+        train_accuracy = running_corrects / len(train_loader.dataset)
+
+        # Evaluation
+        model.eval()
+        eval_loss, eval_accuracy = evaluate_model(model=model,
+                                                  test_loader=test_loader,
+                                                  device=device,
+                                                  criterion=criterion)
+
+        # Set learning rate scheduler
+        scheduler.step()
+
+        print(
+            "Epoch: {:03d} Train Loss: {:.3f} Train Acc: {:.3f} Eval Loss: {:.3f} Eval Acc: {:.3f}"
+            .format(epoch + 1, train_loss, train_accuracy, eval_loss,
+                    eval_accuracy))
+
+    return model

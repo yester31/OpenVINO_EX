@@ -38,41 +38,25 @@ def main():
 
     onnx_model_name = "model/resnet18_{}.onnx".format(device.type)
 
-    with torch.no_grad():
-        # 모델 변환
-        torch.onnx.export(net,                  # 실행될 모델
-                          dummy_input,          # 모델 입력값 (튜플 또는 여러 입력값들도 가능)
-                          onnx_model_name,      # 모델 저장 경로 (파일 또는 파일과 유사한 객체 모두 가능)
-                          export_params=True,   # 모델 파일 안에 학습된 모델 가중치를 저장할지의 여부
-                          opset_version=11,     # 모델을 변환할 때 사용할 ONNX 버전
-                          do_constant_folding=True, # 최적하시 상수폴딩을 사용할지의 여부
-                          input_names =['input'],   # 모델의 입력값을 가리키는 이름
-                          output_names=['output'],  # 모델의 출력값을 가리키는 이름
-                          dynamic_axes={'input': {0: 'batch_size'},  # 가변적인 길이를 가진 차원
-                                        'output': {0: 'batch_size'}})
-        print('Model has been converted to ONNX')
+    # 모델 변환
+    torch.onnx.export(net,                  # 실행될 모델
+                      dummy_input,          # 모델 입력값 (튜플 또는 여러 입력값들도 가능)
+                      onnx_model_name,      # 모델 저장 경로 (파일 또는 파일과 유사한 객체 모두 가능)
+                      export_params=True,   # 모델 파일 안에 학습된 모델 가중치를 저장할지의 여부
+                      opset_version=11,     # 모델을 변환할 때 사용할 ONNX 버전
+                      do_constant_folding=True, # 최적하시 상수폴딩을 사용할지의 여부
+                      input_names =['input'],   # 모델의 입력값을 가리키는 이름
+                      output_names=['output'],  # 모델의 출력값을 가리키는 이름
+                      dynamic_axes={'input': {0: 'batch_size'},  # 가변적인 길이를 가진 차원
+                                    'output': {0: 'batch_size'}})
+    print('Model has been converted to ONNX')
 
     onnx_model = onnx.load(onnx_model_name)
     onnx.checker.check_model(onnx_model)
 
-    if device.type =='cuda' :
-        sess_options = onnxruntime.SessionOptions()
-        # # Optional: store the optimized graph and view it using Netron to verify that model is fully optimized.
-        # # Note that this will increase session creation time so enable it for debugging only.
-        sess_options.optimized_model_filepath = "model/optimized_resnet18_{}.onnx".format(device.type)
-        # # Please change the value according to best setting in Performance Test Tool result.
-        sess_options.intra_op_num_threads = psutil.cpu_count(logical=True)
-        ort_session = onnxruntime.InferenceSession(onnx_model_name, sess_options)
-    else :
-        sess_options = onnxruntime.SessionOptions()
-        # Optional: store the optimized graph and view it using Netron to verify that model is fully optimized.
-        # Note that this will increase session creation time, so it is for debugging only.
-        sess_options.optimized_model_filepath = "model/optimized_resnet18_{}.onnx".format(device.type)
-        # For OnnxRuntime 1.7.0 or later, you can set intra_op_num_threads to set thread number like
-        #    sess_options.intra_op_num_threads=4
-        # Here we use the default value which is a good choice in most cases.
-        # Specify providers when you use onnxruntime-gpu for CPU inference.
-        ort_session = onnxruntime.InferenceSession(onnx_model_name, sess_options, providers=['CPUExecutionProvider'])
+    sess_options = onnxruntime.SessionOptions()
+    sess_options.optimized_model_filepath = "model/onnx_resnet18_{}.onnx".format(device.type)
+    ort_session = onnxruntime.InferenceSession(onnx_model_name, sess_options)
 
     img = cv2.imread('date/panda0.jpg')  # image file load
     dur_time = 0
@@ -98,20 +82,20 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model
+# base model 2021-12-05
 # device = "cpu:0" 일 때
-# 100 iteration time : 2.7593486309051514 [sec]
+# 100 iteration time : 3.76161527633667 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.42092013359069824 [sec]
+# 100 iteration time : 0.501741886138916 [sec]
 
-# jit model
+# jit model 2021-12-05
 # device = "cpu:0" 일 때
-# 100 iteration time : 2.768479824066162 [sec]
+# 100 iteration time : 3.6070895195007324 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.36458611488342285 [sec]
+# 100 iteration time : 0.4049530029296875 [sec]
 
-# onnx
+# onnx model 2021-12-05
 # device = "cpu" 일 때
-# 100 iteration time : 1.2189843654632568 [sec]
+# 100 iteration time : 1.6663672924041748 [sec]
 # device = "gpu" 일 때
-# 100 iteration time : 0.3168525695800781 [sec]
+# 100 iteration time : 1.1880877017974854 [sec] <- 이상함... 흐음

@@ -5,13 +5,17 @@ import torch.onnx
 import onnx
 from openvino.inference_engine import IECore
 print("onnx:", onnx.__version__)
-
 ie = IECore()
 for device in ie.available_devices:
     device_name = ie.get_metric(device_name=device, metric_name="FULL_DEVICE_NAME")
     print(f"{device}: {device_name}")
-#intel_device = 'GPU'
-intel_device = 'CPU'
+
+intel_device = 'GPU'
+#intel_device = 'CPU'
+print(f"intel device : {intel_device}")
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu:0")
+print(f"Using {device} device")
 
 def main():
 
@@ -32,13 +36,10 @@ def main():
     if half:
         net.half()  # to FP16
 
-    # 모델에 대한 입력값
+    # Convert the Pytorch model to ONNX ================================================================================
     dummy_input = torch.randn(batch_size, 3, 224, 224, requires_grad=True)
-    torch_out = net(dummy_input)
-
+    # torch_out = net(dummy_input)
     onnx_model_name = "model/resnet18_cpu.onnx"
-    ir_path = onnx_model_name.split('.')[0] + (".xml")
-
     if not os.path.isfile(onnx_model_name):
         with torch.no_grad():
             # 모델 변환
@@ -53,17 +54,18 @@ def main():
                               dynamic_axes={'input': {0: 'batch_size'},  # 가변적인 길이를 가진 차원
                                             'output': {0: 'batch_size'}})
             print('Model has been converted to ONNX')
-
+    # Convert the ONNX model to OpenVINO ================================================================================
     # Construct the command for Model Optimizer
     mo_command = f"""mo
                      --input_model "{onnx_model_name}"
                      --input_shape "[1,3, {224}, {224}]"
-                     --data_type FP32
+                     --data_type FP16
                      --output_dir "model"
                      """
     mo_command = " ".join(mo_command.split())
     print("Model Optimizer command to convert the ONNX model to OpenVINO:")
 
+    ir_path = onnx_model_name.split('.')[0] + (".xml")
     if not os.path.isfile(ir_path):
         print("Exporting ONNX model to IR... This may take a few minutes.")
         print(mo_command)
@@ -106,26 +108,26 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model 2021-12-05
+# base model(f32)
 # device = "cpu:0" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 3.76161527633667 [sec]
+# 100 iteration time : 2.7593486309051514 [sec]
 # device = "gpu:0" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 0.501741886138916 [sec]
+# 100 iteration time : 0.42092013359069824 [sec]
 
-# jit model 2021-12-05
+# jit model(f32)
 # device = "cpu:0" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 3.6070895195007324 [sec]
+# 100 iteration time : 2.768479824066162 [sec]
 # device = "gpu:0" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 0.4049530029296875 [sec]
+# 100 iteration time : 0.36458611488342285 [sec]
 
-# onnx model 2021-12-05
+# onnx(f32)
 # device = "cpu" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 1.6663672924041748 [sec]
+# 100 iteration time : 1.2189843654632568 [sec]
 # device = "gpu" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 1.1880877017974854 [sec]
+# 100 iteration time : 0.3168525695800781 [sec]
 
-# openVINO(f32) 2021-12-05
+# openVINO(f32)
 # device = "cpu" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 1.176347255706787 [sec]
+# 100 iteration time : 0.865093469619751 [sec]
 # device = "gpu" 일 때 (Intel(R) Iris(R) Xe Graphics (iGPU))
-# 100 iteration time : 0.5303637981414795 [sec]
+# 100 iteration time : 0.35637593269348145 [sec]
