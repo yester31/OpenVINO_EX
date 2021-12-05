@@ -9,6 +9,7 @@
 
 
 # 2.OpenVINO_Benchmark 
+- resnet18 Model
 - Performace evaluation(Execution time of 100 iteration for one 224x224x3 image)
   - PyTorch (cpu) -> 3761 [ms]
   - PyTorch (gpu) -> 501 [ms]
@@ -20,6 +21,7 @@
   - (Calculated on the 2021-12-05)
 
 # 3.OpenVINO_PTQ
+- resnet18 Model
 - Performace evaluation(Execution time of 100 iteration for one 224x224x3 image)
 - Using 1000 images from Imagenet 2017 validation dataset for calibration
   - openVINO (cpu) -> 1176 [ms] (f32)
