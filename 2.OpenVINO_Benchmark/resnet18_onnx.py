@@ -6,9 +6,14 @@ import onnx
 import onnxruntime
 import psutil
 
-print('gpu device count : ', torch.cuda.device_count())
-print('device_name : ', torch.cuda.get_device_name(0))
-print('gpu available : ', torch.cuda.is_available())
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+if torch.cuda.is_available():
+    print('gpu device count : ', torch.cuda.device_count())
+    print('device_name : ', torch.cuda.get_device_name(0))
+    print('torch gpu available : ', torch.cuda.is_available())
+
 print("onnxruntime:", onnxruntime.__version__)
 print("onnx:", onnx.__version__)
 
@@ -82,20 +87,20 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model 2021-12-05
+# base model 2021-12-06
 # device = "cpu:0" 일 때
-# 100 iteration time : 3.76161527633667 [sec]
+# 100 iteration time : 3.235487461090088 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.501741886138916 [sec]
+# 100 iteration time : 0.3634309768676758 [sec]
 
-# jit model 2021-12-05
+# jit model 2021-12-06
 # device = "cpu:0" 일 때
-# 100 iteration time : 3.6070895195007324 [sec]
+# 100 iteration time : 2.554605007171631 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.4049530029296875 [sec]
+# 100 iteration time : 0.34999537467956543 [sec]
 
-# onnx model 2021-12-05
+# onnx model
 # device = "cpu" 일 때
-# 100 iteration time : 1.6663672924041748 [sec]
+# 100 iteration time : 1.2032380104064941 [sec]
 # device = "gpu" 일 때
-# 100 iteration time : 1.1880877017974854 [sec] <- 이상함... 흐음
+# 100 iteration time : 0.9713826179504395 [sec]

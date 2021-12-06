@@ -5,9 +5,10 @@ from utils import *
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-print('gpu device count : ', torch.cuda.device_count())
-print('device_name : ', torch.cuda.get_device_name(0))
-print('gpu available : ', torch.cuda.is_available())
+if torch.cuda.is_available():
+    print('gpu device count : ', torch.cuda.device_count())
+    print('device_name : ', torch.cuda.get_device_name(0))
+    print('torch gpu available : ', torch.cuda.is_available())
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu:0")
 #device = torch.device("cpu:0")
@@ -62,8 +63,8 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model 2021-12-05
+# base model 2021-12-06
 # device = "cpu:0" 일 때
-# 100 iteration time : 3.76161527633667 [sec]
+# 100 iteration time : 3.235487461090088 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.501741886138916 [sec]
+# 100 iteration time : 0.3634309768676758 [sec]

@@ -10,8 +10,8 @@ ie = IECore()
 for device in ie.available_devices:
     device_name = ie.get_metric(device_name=device, metric_name="FULL_DEVICE_NAME")
     print(f"{device}: {device_name}")
-#intel_device = 'GPU'
-intel_device = 'CPU'
+intel_device = 'GPU'
+#intel_device = 'CPU'
 
 def main():
 
@@ -106,26 +106,26 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model 2021-12-05
-# device = "cpu:0" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 3.76161527633667 [sec]
-# device = "gpu:0" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 0.501741886138916 [sec]
+# base model 2021-12-06
+# device = "cpu:0" 일 때
+# 100 iteration time : 3.235487461090088 [sec]
+# device = "gpu:0" 일 때
+# 100 iteration time : 0.3634309768676758 [sec]
 
-# jit model 2021-12-05
-# device = "cpu:0" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 3.6070895195007324 [sec]
-# device = "gpu:0" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 0.4049530029296875 [sec]
+# jit model 2021-12-06
+# device = "cpu:0" 일 때
+# 100 iteration time : 2.554605007171631 [sec]
+# device = "gpu:0" 일 때
+# 100 iteration time : 0.34999537467956543 [sec]
 
-# onnx model 2021-12-05
+# onnx model 2021-12-06
+# device = "cpu" 일 때
+# 100 iteration time : 1.2032380104064941 [sec]
+# device = "gpu" 일 때
+# 100 iteration time : 0.9713826179504395 [sec]
+
+# openVINO(f32) 2021-12-06
 # device = "cpu" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 1.6663672924041748 [sec]
-# device = "gpu" 일 때 (NVIDIA GeForce RTX 3060 Laptop GPU)
-# 100 iteration time : 1.1880877017974854 [sec]
-
-# openVINO(f32) 2021-12-05
-# device = "cpu" 일 때 (11th Gen Intel(R) Core(TM) i7-11375H @ 3.30GHz)
-# 100 iteration time : 1.176347255706787 [sec]
+# 100 iteration time : 0.9148223400115967 [sec]
 # device = "gpu" 일 때 (Intel(R) Iris(R) Xe Graphics (iGPU))
-# 100 iteration time : 0.5303637981414795 [sec]
+# 100 iteration time : 0.4704701900482178 [sec]

@@ -57,6 +57,8 @@ def infer(img, net, half, device):
         out = net(img6)
         return out
 
+
+
 # 전처리 및 추론 연산 함수
 def infer_onnx(img, net, half,device):
     img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # bgr -> rgb

@@ -2,12 +2,16 @@ import torch, torchvision, os, cv2, struct, time
 import numpy as np
 from utils import *
 
-print('gpu device count : ', torch.cuda.device_count())
-print('device_name : ', torch.cuda.get_device_name(0))
-print('gpu available : ', torch.cuda.is_available())
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+if torch.cuda.is_available():
+    print('gpu device count : ', torch.cuda.device_count())
+    print('device_name : ', torch.cuda.get_device_name(0))
+    print('torch gpu available : ', torch.cuda.is_available())
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu:0")
-device = torch.device("cpu:0")
+#device = torch.device("cpu:0")
 print(f"{device}")
 
 def main():
@@ -37,12 +41,12 @@ def main():
 
     # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
     out = infer(img, net, half, device)
-    torch.cuda.synchronize()
+    #torch.cuda.synchronize()
 
     for i in range(iteration):
         begin = time.time()
         out = infer(img, net, half, device)
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         dur = time.time() - begin
         dur_time += dur
         #print('{} dur time : {}'.format(i, dur))
@@ -58,14 +62,14 @@ def main():
 if __name__ == '__main__':
     main()
 
-# base model 2021-12-05
+# base model 2021-12-06
 # device = "cpu:0" 일 때
-# 100 iteration time : 3.76161527633667 [sec]
+# 100 iteration time : 3.235487461090088 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.501741886138916 [sec]
+# 100 iteration time : 0.3634309768676758 [sec]
 
-# jit model 2021-12-05
+# jit model 2021-12-06
 # device = "cpu:0" 일 때
-# 100 iteration time : 3.6070895195007324 [sec]
+# 100 iteration time : 2.554605007171631 [sec]
 # device = "gpu:0" 일 때
-# 100 iteration time : 0.4049530029296875 [sec]
+# 100 iteration time : 0.34999537467956543 [sec]
