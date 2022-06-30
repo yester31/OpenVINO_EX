@@ -9,7 +9,7 @@
 # 2.OpenVINO_Benchmark 
 - resnet18 Model
 - Performace evaluation(Execution time of 100 iteration for one 224x224x3 image)
-- (Calculated on the 2021-12-05)
+- (Calculated on the 2021-12-05, f32 precision)
 
 <table border="0"  width="100%">
 	<tbody align="center">
@@ -56,11 +56,11 @@
 <table border="0"  width="100%">
 	<tbody align="center">
 		<tr>
-			<td>cpu</td>
-			<td><strong>openVINO</strong></td>
-            <td><strong>openVINO</strong></td>
-            <td><strong>ONNX Runtime</strong></td>
-            <td><strong>openVINO</strong></td>
+			<td></td>
+			<td><strong>openVINO (cpu)</strong></td>
+            <td><strong>openVINO (cpu)</strong></td>
+            <td><strong>openVINO (igpu)</strong></td>
+            <td><strong>openVINO (igpu)</strong></td>
 		</tr>
 		<tr>
 			<td>precision</td>
@@ -71,10 +71,10 @@
 		</tr>
 		<tr>
 			<td>Avg Duration time [ms]</td>
-			<td>37.61 ms</td>
-			<td>36.07 ms</td>
-			<td>16.66 ms</td>
 			<td>11.76 ms</td>
+			<td>3.78 ms</td>
+			<td>5.30 ms</td>
+			<td>2.82 ms</td>
 		</tr>
 	</tbody>
 </table>
